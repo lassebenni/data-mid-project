@@ -1,15 +1,26 @@
 """Pydantic models for data validation. Replace with your own."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
-class WeatherReading(BaseModel):
-    """Example model. Replace with your own data structure."""
+from datetime import datetime
 
-    city: str
-    temperature: float = Field(ge=-100, le=100)
-    humidity: float = Field(ge=0, le=100)
-    timestamp: str
 
-    # TODO: Replace these fields with the fields from your API response.
-    # Pydantic will reject any record that does not match this schema.
+class SteamArticle(BaseModel):
+    id: str = Field(alias="news_id")
+    appid: int
+    title: str
+    url: str | None = None
+    author: str | None = "Unknown"
+    contents: str | None = "No content available."
+    published_at: datetime
+
+    @field_validator("published_at", mode="before")
+    @classmethod
+    def parse_unix_timestamp(cls, v):
+        """Forces Pydantic to reliably parse Unix timestamps, even if they arrive as strings."""
+        if isinstance(v, (int, float)):
+            return datetime.fromtimestamp(v)
+        if isinstance(v, str) and v.isdigit():
+            return datetime.fromtimestamp(int(v))
+        return v

@@ -1,38 +1,37 @@
 """Example tests for Pydantic models. Replace with your own."""
 
+from datetime import datetime
 import pytest
 from pydantic import ValidationError
-from src.models import WeatherReading
+from src.models import SteamArticle
 
 
 def test_valid_reading():
     """A valid record should be accepted."""
-    reading = WeatherReading(
-        city="Copenhagen",
-        temperature=18.5,
-        humidity=65.0,
-        timestamp="2026-03-30T10:00",
-    )
-    assert reading.city == "Copenhagen"
-    assert reading.temperature == 18.5
+    raw_payload = {
+        "news_id": "12345",
+        "appid": 570,
+        "title": "   dota 2 patch notes   ",
+        "url": "  https://steam.com/news/12345  ",
+        "published_at": "1718236800",
+    }
+
+    article = SteamArticle(**raw_payload)
+
+    assert article.id == "12345"
+    assert article.title == "   dota 2 patch notes   "
+    assert isinstance(article.published_at, datetime)
+    assert article.author == "Unknown"
+    assert article.contents == "No content available."
+    print("✅ Test 1 Passed: Successful payload parsed and defaulted perfectly!")
 
 
-def test_invalid_temperature_too_high():
-    """Temperature above 100 should be rejected."""
+def test_validation_failure():
+    corrupted_payload = {
+        "appid": "not-a-number!!!",
+        "title": "Broken Article",
+        "published_at": "not-a-date",
+    }
+
     with pytest.raises(ValidationError):
-        WeatherReading(
-            city="Copenhagen",
-            temperature=999,
-            humidity=65.0,
-            timestamp="2026-03-30T10:00",
-        )
-
-
-def test_missing_city():
-    """Missing required field should be rejected."""
-    with pytest.raises(ValidationError):
-        WeatherReading(
-            temperature=18.5,
-            humidity=65.0,
-            timestamp="2026-03-30T10:00",
-        )
+        SteamArticle(**corrupted_payload)
