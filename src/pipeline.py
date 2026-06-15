@@ -3,16 +3,20 @@
 import logging
 import os
 import sys
-
+from pathlib import Path
 from dotenv import load_dotenv
+from pydantic import ValidationError
+from src.models import SteamArticle
+
+# from src.storage import insert_readings, upload_raw_json
+from src.ingest_api import fetch_api_records
+from src.transform import transform
+import json
+
 
 load_dotenv()
-
-import pandas as pd
-from pydantic import ValidationError
-
-from src.models import WeatherReading
-from src.storage import insert_readings, upload_raw_json
+JSON_PATH = Path("data/raw_steam_news.json")
+JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
@@ -22,77 +26,53 @@ logging.getLogger("azure").setLevel(logging.WARNING)
 log = logging.getLogger(__name__)
 
 
-def fetch_data() -> list[dict]:
-    """Fetch data from your API. Replace this with your own logic."""
-    # TODO: Replace with your API call
-    # Example using requests:
-    #   response = requests.get("https://api.open-meteo.com/v1/forecast?...")
-    #   response.raise_for_status()
-    #   return response.json()["hourly"]
-    raise NotImplementedError("Replace this with your API call")
-
-
-def validate(raw_records: list[dict]) -> list[WeatherReading]:
+def validate(raw_records: list[dict]) -> list[dict]:
     """Validate raw records using Pydantic models."""
-    valid = []
+    validated = []
     for record in raw_records:
         try:
-            valid.append(WeatherReading(**record))
+            model = SteamArticle(**record)
+            validated.append(model.model_dump(by_alias=True))
         except ValidationError as e:
             log.warning("Skipping invalid record: %s", e)
-    log.info("Validated %d / %d records", len(valid), len(raw_records))
-    return valid
-
-
-def transform(readings: list[WeatherReading]) -> pd.DataFrame:
-    """Convert validated records to a DataFrame and apply transformations.
-
-    This is where pandas earns its place. Replace the examples below with
-    transformations that make sense for your data.
-    """
-    df = pd.DataFrame([r.model_dump() for r in readings])
-
-    # TODO: Replace these with your own transformations. Examples:
-    #
-    # Parse timestamp strings into proper datetime objects:
-    #   df["timestamp"] = pd.to_datetime(df["timestamp"])
-    #
-    # Derive a new column from existing data:
-    #   df["temp_fahrenheit"] = df["temperature"] * 9 / 5 + 32
-    #
-    # Drop rows where a required field is missing:
-    #   df = df.dropna(subset=["temperature"])
-    #
-    # Rename columns to match your Postgres table:
-    #   df = df.rename(columns={"timestamp": "recorded_at"})
-
-    log.info("Transformed %d rows", len(df))
-    return df
+    log.info("Validated %d / %d records", len(validated), len(raw_records))
+    return validated
 
 
 def run():
     """Run the full pipeline: fetch -> validate -> transform -> store."""
     log.info("Pipeline starting")
 
-    raw = fetch_data()
-    readings = validate(raw)
+    raw = fetch_api_records(appid=570)  # Example: Dota 2 appid is 570
+    with open(JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(raw, f, indent=4, ensure_ascii=False)
+    logging.info(f"💾 Raw data safely landed locally to: '{JSON_PATH}'")
+    validated_data = validate(raw)
 
-    if not readings:
+    if not validated_data:
         log.error("No valid records to store")
         sys.exit(1)
 
-    df = transform(readings)
-    insert_readings(df)
-    upload_raw_json(raw)
-
-    log.info("Pipeline finished: %d records stored", len(df))
+    cleaned_df = transform(articles=validated_data)
+    # insert_readings(cleaned_df)
+    # upload_raw_json(raw)
+    CLEAN_JSON_PATH = Path("data/cleaned_steam_news.json")
+    with open(CLEAN_JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(
+            cleaned_df.to_dict(orient="records"),
+            f,
+            indent=4,
+            ensure_ascii=False,
+        )
+    log.info(f"✨ Cleaned data safely saved to: '{CLEAN_JSON_PATH}'")
+    log.info("Pipeline finished: %d records stored", len(cleaned_df))
 
 
 if __name__ == "__main__":
-    # Fail fast if required env vars are missing
-    for var in ["POSTGRES_URL", "AZURE_STORAGE_CONNECTION_STRING"]:
-        if var not in os.environ:
-            log.error("Missing required environment variable: %s", var)
-            sys.exit(1)
+    # # Fail fast if required env vars are missing
+    # for var in ["POSTGRES_URL", "AZURE_STORAGE_CONNECTION_STRING"]:
+    #     if var not in os.environ:
+    #         log.error("Missing required environment variable: %s", var)
+    #         sys.exit(1)
 
     run()
