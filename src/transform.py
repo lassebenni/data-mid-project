@@ -17,19 +17,33 @@ def transform(articles: list[dict]) -> pd.DataFrame:
         )
         return pd.DataFrame()
     df = pd.DataFrame(articles)
-    df["title"] = df["title"].str.strip().str.title()
-    df["url"] = df["url"].str.strip()
-    df["published_at"] = pd.to_datetime(df["published_at"], unit="s", errors="coerce")
+    df = df.drop_duplicates(subset=["news_id"])
+    df["title"] = df["title"].str.strip()
+    df["url"] = df["url"]
+    df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
+
+    # Convert timestamp column to clean string format for easy JSON serialization
+    df["published_at"] = df["published_at"].dt.strftime("%Y-%m-%d %H:%M:%S")
     df = df.dropna(subset=["news_id", "title"])
     df["author"] = df["author"]
-    df["contents"] = df["contents"]
-    # 1. Clear HTML tags: <img src="..."> -> eliminated
+
+    df["contents"] = df["contents"].str.replace(
+        r"\{STEAM_CLAN_[^\}]*\}/\d+/[a-f0-9]+\.(png|jpg|jpeg|gif)?",
+        "",
+        regex=True,
+        case=False,
+    )
+
+    # B. Catch any other lingering curly brace tokens: {EXAMPLE}
+    df["contents"] = df["contents"].str.replace(r"\{[^}]*\}", "", regex=True)
+
+    # C. Clear regular HTML tags: <img src="...">
     df["contents"] = df["contents"].str.replace(r"<[^>]*>", "", regex=True)
 
-    # 2. Clear BBCode tags: [img]...[/img] -> eliminated
+    # D. Clear regular BBCode tags: [img]...[/img]
     df["contents"] = df["contents"].str.replace(r"\[[^\]]*\]", "", regex=True)
 
-    # 3. Collapse massive whitespace gaps, tabs, and raw newlines (\n) into single spaces
+    # E. Collapse double spaces, tabs, and ugly escaped newlines into clean single spaces
     df["contents"] = df["contents"].str.replace(r"\s+", " ", regex=True).str.strip()
 
     logger.info("Transformed %d rows successfully", len(df))

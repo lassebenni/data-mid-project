@@ -24,3 +24,8 @@ class SteamArticle(BaseModel):
         if isinstance(v, str) and v.isdigit():
             return datetime.fromtimestamp(int(v))
         return v
+
+    @field_validator("author", mode="before")
+    @classmethod
+    def empty_author(cls, v):
+        return v if v and v.strip() else "Unknown"
