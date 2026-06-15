@@ -20,10 +20,7 @@ def transform(articles: list[dict]) -> pd.DataFrame:
     df = df.drop_duplicates(subset=["news_id"])
     df["title"] = df["title"].str.strip()
     df["url"] = df["url"]
-    df["published_at"] = pd.to_datetime(df["published_at"], errors="coerce")
-
-    # Convert timestamp column to clean string format for easy JSON serialization
-    df["published_at"] = df["published_at"].dt.strftime("%Y-%m-%d %H:%M:%S")
+    df["published_at"] = pd.to_datetime(df["published_at"], utc=True, errors="coerce")
     df = df.dropna(subset=["news_id", "title"])
     df["author"] = df["author"]
 
