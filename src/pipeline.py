@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from pydantic import ValidationError
 from src.models import SteamArticle
 
-# from src.storage import insert_readings, upload_raw_json
+from src.storage import insert_readings, upload_raw_json
 from src.ingest_api import fetch_api_records
 from src.transform import transform
 import json
@@ -54,12 +54,16 @@ def run():
         sys.exit(1)
 
     cleaned_df = transform(articles=validated_data)
-    # insert_readings(cleaned_df)
-    # upload_raw_json(raw)
+    insert_readings(cleaned_df)
+    upload_raw_json(raw)
     CLEAN_JSON_PATH = Path("data/cleaned_steam_news.json")
     with open(CLEAN_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(
-            cleaned_df.to_dict(orient="records"),
+            json.loads(
+                cleaned_df.to_json(
+                    orient="records", force_ascii=False, date_format="iso"
+                )
+            ),
             f,
             indent=4,
             ensure_ascii=False,
@@ -69,10 +73,10 @@ def run():
 
 
 if __name__ == "__main__":
-    # # Fail fast if required env vars are missing
-    # for var in ["POSTGRES_URL", "AZURE_STORAGE_CONNECTION_STRING"]:
-    #     if var not in os.environ:
-    #         log.error("Missing required environment variable: %s", var)
-    #         sys.exit(1)
+    # Fail fast if required env vars are missing
+    for var in ["POSTGRES_URL", "AZURE_STORAGE_CONNECTION_STRING"]:
+        if var not in os.environ:
+            log.error("Missing required environment variable: %s", var)
+            sys.exit(1)
 
     run()
