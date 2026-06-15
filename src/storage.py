@@ -5,7 +5,6 @@ import logging
 import os
 from contextlib import closing
 from datetime import datetime, timezone
-
 import pandas as pd
 import psycopg2
 from azure.core.exceptions import ResourceExistsError
@@ -26,40 +25,44 @@ def insert_readings(df: pd.DataFrame) -> None:
 
     with closing(psycopg2.connect(db_url)) as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                f"CREATE SCHEMA IF NOT EXISTS {schema}"  # noqa: S608
-            )
-            cur.execute(f"SET search_path TO {schema}")  # noqa: S608
+            cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
+            cur.execute(f"SET search_path TO {schema}")
 
-            # TODO: Replace 'weather_readings' with a name that describes your data.
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS weather_readings (
-                    id SERIAL PRIMARY KEY,
-                    city TEXT NOT NULL,
-                    temperature REAL NOT NULL,
-                    humidity REAL NOT NULL,
-                    timestamp TEXT NOT NULL
+                CREATE TABLE IF NOT EXISTS steam_news (
+                    news_id TEXT PRIMARY KEY,
+                    appid INTEGER NOT NULL,
+                    title TEXT NOT NULL,
+                    url TEXT,
+                    author TEXT DEFAULT 'Unknown',
+                    contents TEXT,
+                    published_at TIMESTAMPTZ NOT NULL,
+                    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             """)
 
-            for _, row in df.iterrows():
+            for row in df.to_dict(orient="records"):
                 cur.execute(
-                    "INSERT INTO weather_readings (city, temperature, humidity, timestamp)"
-                    " VALUES (%s, %s, %s, %s)",
+                    "INSERT INTO steam_news (news_id, appid, title, url, author, contents, published_at)"
+                    " VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                    " ON CONFLICT (news_id) DO NOTHING",
                     (
-                        row["city"],
-                        row["temperature"],
-                        row["humidity"],
-                        row["timestamp"],
+                        row["news_id"],
+                        row["appid"],
+                        row["title"],
+                        row["url"],
+                        row["author"],
+                        row["contents"],
+                        row["published_at"],
                     ),
                 )
 
         conn.commit()
 
-    log.info("Inserted %d rows into %s.weather_readings", len(df), schema)
+    log.info("Inserted %d rows into %s.steam_news", len(df), schema)
 
 
-def upload_raw_json(raw_data) -> None:
+def upload_raw_json(raw_records: list[dict]) -> None:
     """Upload raw API response to Blob Storage as a JSON backup."""
     conn_str = os.environ["AZURE_STORAGE_CONNECTION_STRING"]
     client = BlobServiceClient.from_connection_string(conn_str)
@@ -70,11 +73,11 @@ def upload_raw_json(raw_data) -> None:
         pass
 
     blob_name = (
-        f"pipeline/{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H%M%S')}.json"
+        f"Steam_news/{datetime.now(timezone.utc).strftime('%Y-%m-%d_%H%M%S')}.json"
     )
     container.upload_blob(
         name=blob_name,
-        data=json.dumps(raw_data).encode("utf-8"),
+        data=json.dumps(raw_records).encode("utf-8"),
         overwrite=True,
     )
     log.info("Uploaded raw data to blob: %s", blob_name)
