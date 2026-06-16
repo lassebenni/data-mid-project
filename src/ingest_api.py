@@ -61,6 +61,7 @@ def fetch_api_records(appid: int) -> list[dict]:
         "appid": appid,
         "count": 20,
         "maxlength": 0,
+        "feeds": "steam_community_announcements,pcgamer,pcgamesn",
     }
 
     try:
@@ -87,4 +88,5 @@ def fetch_api_records(appid: int) -> list[dict]:
             "published_at": article.get("date"),
         }
         for article in articles
+        if article.get("appid") == appid
     ]

@@ -1,15 +1,12 @@
-# Week 7 Project: [Your Project Name]
+# Week 7 Project: [Steam News]
 
 ## What it does
 
-<!-- Describe your pipeline in 1-2 sentences. What data does it fetch? Where does it store the results? -->
+This pipeline fetches the latest news articles for a Steam game [can be modified] (Dota 2) from the Steam Web API, validates and cleans the data, then stores the results both locally and in a PostgreSQL database and uploads the raw JSON as a backup to Azure Blob Storage.
 
 ## Architecture
 
-```text
-[Your API] ──► pipeline.py ──► Pydantic validation ──► Postgres INSERT (your schema)
-                                                     ──► Blob Storage (raw JSON)
-```
+Steam Web API ──► ingest_api.py ──► pipeline.py ──► validate() [Pydantic] ──► transform() [pandas] ──► Postgres INSERT (dev_noneeeed)──► Blob Storage (raw JSON backup)
 
 ## Run locally
 
