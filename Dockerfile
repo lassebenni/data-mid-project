@@ -8,5 +8,6 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY src/ src/
+COPY .env.example .env.example
 
 CMD ["uv", "run", "python", "-m", "src.pipeline"]
